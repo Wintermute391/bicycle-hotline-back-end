@@ -13,7 +13,7 @@ app.use(cors({ origin: "*", methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "
 app.options("*", cors());
 app.use(express.json());
 
-app.get("/health", (_req, res) => res.json({ ok: true }));
+app.get("/health", (_req, res) => res.json({ ok: true, db: "connected" }));
 
 const httpServer = createServer(app);
 
