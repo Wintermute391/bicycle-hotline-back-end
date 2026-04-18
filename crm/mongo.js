@@ -3,6 +3,7 @@ import { getDb } from "../shared/mongo.js";
 
 const CUSTOMERS = "customers";
 const JOBS = "jobs";
+const BIKES = "bikes";
 
 const VALID_STATUSES = new Set([
   "in_queue",
@@ -40,10 +41,7 @@ export async function updateCustomer({ customerId, name, phone, email }) {
   if (phone !== undefined) update.phone = String(phone).trim();
   if (email !== undefined) update.email = String(email).trim().toLowerCase();
 
-  await getDb()
-    .collection(CUSTOMERS)
-    .updateOne({ _id: customerId }, { $set: update });
-
+  await getDb().collection(CUSTOMERS).updateOne({ _id: customerId }, { $set: update });
   return getCustomerById(customerId);
 }
 
@@ -52,12 +50,51 @@ export async function deleteCustomer({ customerId }) {
     .collection(JOBS)
     .findOne({ customerId, status: { $nin: ["completed", "picked_up"] } });
 
-  if (activeJob) {
-    throw new Error("Cannot delete customer with active jobs.");
-  }
+  if (activeJob) throw new Error("Cannot delete customer with active jobs.");
 
   await getDb().collection(CUSTOMERS).deleteOne({ _id: customerId });
   return customerId;
+}
+
+// ── Bikes ─────────────────────────────────────────────────────────────────────
+
+export async function listBikes() {
+  return getDb().collection(BIKES).find({}).sort({ make: 1, model: 1 }).toArray();
+}
+
+export async function getBikeById(bikeId) {
+  return getDb().collection(BIKES).findOne({ _id: bikeId });
+}
+
+export async function createBike({ customerId, make, model, color, description }) {
+  const bike = {
+    _id: randomUUID(),
+    customerId: customerId || null,
+    make: String(make || "").trim(),
+    model: String(model || "").trim(),
+    color: String(color || "").trim(),
+    description: String(description || "").trim(),
+    createdAt: new Date().toISOString(),
+  };
+  await getDb().collection(BIKES).insertOne(bike);
+  return bike;
+}
+
+export async function updateBike({ bikeId, customerId, make, model, color, description }) {
+  const update = {};
+  if (customerId !== undefined) update.customerId = customerId || null;
+  if (make !== undefined) update.make = String(make).trim();
+  if (model !== undefined) update.model = String(model).trim();
+  if (color !== undefined) update.color = String(color).trim();
+  if (description !== undefined) update.description = String(description).trim();
+
+  await getDb().collection(BIKES).updateOne({ _id: bikeId }, { $set: update });
+  return getBikeById(bikeId);
+}
+
+export async function deleteBike({ bikeId }) {
+  await getDb().collection(BIKES).deleteOne({ _id: bikeId });
+  return bikeId;
 }
 
 // ── Jobs ─────────────────────────────────────────────────────────────────────
@@ -71,8 +108,7 @@ function normalizeExpenses(expenses = []) {
 }
 
 async function getMaxQueueOrder() {
-  const db = getDb();
-  const result = await db
+  const result = await getDb()
     .collection(JOBS)
     .find({})
     .sort({ queueOrder: -1 })
@@ -82,24 +118,24 @@ async function getMaxQueueOrder() {
 }
 
 export async function listJobs({ sort = "queue" } = {}) {
-  const db = getDb();
   let sortSpec;
   if (sort === "startDate") sortSpec = { startDate: 1 };
   else if (sort === "expectedDate") sortSpec = { expectedDate: 1 };
   else sortSpec = { queueOrder: 1 };
 
-  return db.collection(JOBS).find({}).sort(sortSpec).toArray();
+  return getDb().collection(JOBS).find({}).sort(sortSpec).toArray();
 }
 
 export async function getJobById(jobId) {
   return getDb().collection(JOBS).findOne({ _id: jobId });
 }
 
-export async function createJob({ customerId, description, startDate, expectedDate }) {
+export async function createJob({ customerId, bikeId, description, startDate, expectedDate }) {
   const maxOrder = await getMaxQueueOrder();
   const job = {
     _id: randomUUID(),
     customerId,
+    bikeId: bikeId || null,
     description: String(description || "").trim(),
     startDate: startDate || new Date().toISOString().slice(0, 10),
     expectedDate: expectedDate || null,
@@ -112,11 +148,12 @@ export async function createJob({ customerId, description, startDate, expectedDa
   return job;
 }
 
-export async function updateJob({ jobId, description, startDate, expectedDate, expenses }) {
+export async function updateJob({ jobId, description, startDate, expectedDate, bikeId, expenses }) {
   const update = { updatedAt: new Date().toISOString() };
   if (description !== undefined) update.description = String(description).trim();
   if (startDate !== undefined) update.startDate = startDate;
   if (expectedDate !== undefined) update.expectedDate = expectedDate;
+  if (bikeId !== undefined) update.bikeId = bikeId || null;
   if (expenses !== undefined) update.expenses = normalizeExpenses(expenses);
 
   await getDb().collection(JOBS).updateOne({ _id: jobId }, { $set: update });
@@ -124,9 +161,7 @@ export async function updateJob({ jobId, description, startDate, expectedDate, e
 }
 
 export async function updateJobStatus({ jobId, status }) {
-  if (!VALID_STATUSES.has(status)) {
-    throw new Error(`Invalid status: ${status}`);
-  }
+  if (!VALID_STATUSES.has(status)) throw new Error(`Invalid status: ${status}`);
   await getDb()
     .collection(JOBS)
     .updateOne({ _id: jobId }, { $set: { status, updatedAt: new Date().toISOString() } });
@@ -150,12 +185,8 @@ export async function reorderJob({ jobId, direction }) {
   const db = getDb();
 
   await Promise.all([
-    db
-      .collection(JOBS)
-      .updateOne({ _id: target._id }, { $set: { queueOrder: neighbor.queueOrder } }),
-    db
-      .collection(JOBS)
-      .updateOne({ _id: neighbor._id }, { $set: { queueOrder: target.queueOrder } }),
+    db.collection(JOBS).updateOne({ _id: target._id }, { $set: { queueOrder: neighbor.queueOrder } }),
+    db.collection(JOBS).updateOne({ _id: neighbor._id }, { $set: { queueOrder: target.queueOrder } }),
   ]);
 
   return listJobs({ sort: "queue" });

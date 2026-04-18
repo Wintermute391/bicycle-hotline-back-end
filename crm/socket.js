@@ -1,12 +1,16 @@
 import {
+  createBike,
   createCustomer,
+  createJob,
+  deleteBike,
   deleteCustomer,
   deleteJob,
   getCustomerById,
+  listBikes,
   listCustomers,
   listJobs,
-  createJob,
   reorderJob,
+  updateBike,
   updateCustomer,
   updateJob,
   updateJobStatus,
@@ -32,8 +36,7 @@ export function registerCrmSocketHandlers(io, socket) {
 
   socket.on("crm:customer:list", async ({ correlationId } = {}) => {
     await handle(socket, io, "crm:customer:list", correlationId, async () => {
-      const customers = await listCustomers();
-      return { customers };
+      return { customers: await listCustomers() };
     });
   });
 
@@ -45,16 +48,13 @@ export function registerCrmSocketHandlers(io, socket) {
     });
   });
 
-  socket.on(
-    "crm:customer:update",
-    async ({ correlationId, customerId, name, phone, email } = {}) => {
-      await handle(socket, io, "crm:customer:update", correlationId, async () => {
-        const customer = await updateCustomer({ customerId, name, phone, email });
-        io.emit("crm:customerChanged", { customer });
-        return { customer };
-      });
-    }
-  );
+  socket.on("crm:customer:update", async ({ correlationId, customerId, name, phone, email } = {}) => {
+    await handle(socket, io, "crm:customer:update", correlationId, async () => {
+      const customer = await updateCustomer({ customerId, name, phone, email });
+      io.emit("crm:customerChanged", { customer });
+      return { customer };
+    });
+  });
 
   socket.on("crm:customer:delete", async ({ correlationId, customerId } = {}) => {
     await handle(socket, io, "crm:customer:delete", correlationId, async () => {
@@ -64,25 +64,53 @@ export function registerCrmSocketHandlers(io, socket) {
     });
   });
 
+  // ── Bikes ──────────────────────────────────────────────────────────────────
+
+  socket.on("crm:bike:list", async ({ correlationId } = {}) => {
+    await handle(socket, io, "crm:bike:list", correlationId, async () => {
+      return { bikes: await listBikes() };
+    });
+  });
+
+  socket.on("crm:bike:create", async ({ correlationId, customerId, make, model, color, description } = {}) => {
+    await handle(socket, io, "crm:bike:create", correlationId, async () => {
+      const bike = await createBike({ customerId, make, model, color, description });
+      io.emit("crm:bikeChanged", { bike });
+      return { bike };
+    });
+  });
+
+  socket.on("crm:bike:update", async ({ correlationId, bikeId, ...fields } = {}) => {
+    await handle(socket, io, "crm:bike:update", correlationId, async () => {
+      const bike = await updateBike({ bikeId, ...fields });
+      io.emit("crm:bikeChanged", { bike });
+      return { bike };
+    });
+  });
+
+  socket.on("crm:bike:delete", async ({ correlationId, bikeId } = {}) => {
+    await handle(socket, io, "crm:bike:delete", correlationId, async () => {
+      await deleteBike({ bikeId });
+      io.emit("crm:bikeRemoved", { bikeId });
+      return { bikeId };
+    });
+  });
+
   // ── Jobs ───────────────────────────────────────────────────────────────────
 
   socket.on("crm:job:list", async ({ correlationId, sort } = {}) => {
     await handle(socket, io, "crm:job:list", correlationId, async () => {
-      const jobs = await listJobs({ sort });
-      return { jobs };
+      return { jobs: await listJobs({ sort }) };
     });
   });
 
-  socket.on(
-    "crm:job:create",
-    async ({ correlationId, customerId, description, startDate, expectedDate } = {}) => {
-      await handle(socket, io, "crm:job:create", correlationId, async () => {
-        const job = await createJob({ customerId, description, startDate, expectedDate });
-        io.emit("crm:jobChanged", { job });
-        return { job };
-      });
-    }
-  );
+  socket.on("crm:job:create", async ({ correlationId, customerId, bikeId, description, startDate, expectedDate } = {}) => {
+    await handle(socket, io, "crm:job:create", correlationId, async () => {
+      const job = await createJob({ customerId, bikeId, description, startDate, expectedDate });
+      io.emit("crm:jobChanged", { job });
+      return { job };
+    });
+  });
 
   socket.on("crm:job:update", async ({ correlationId, jobId, ...fields } = {}) => {
     await handle(socket, io, "crm:job:update", correlationId, async () => {
