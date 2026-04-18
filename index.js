@@ -9,7 +9,8 @@ import { registerCrmSocketHandlers } from "./crm/socket.js";
 const PORT = process.env.PORT || 3001;
 
 const app = express();
-app.use(cors());
+app.use(cors({ origin: "*", methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"] }));
+app.options("*", cors());
 app.use(express.json());
 
 app.get("/health", (_req, res) => res.json({ ok: true }));
@@ -17,7 +18,7 @@ app.get("/health", (_req, res) => res.json({ ok: true }));
 const httpServer = createServer(app);
 
 const io = new Server(httpServer, {
-  cors: { origin: "*" },
+  cors: { origin: "*", methods: ["GET", "POST"] },
 });
 
 io.on("connection", (socket) => {
