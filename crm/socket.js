@@ -16,6 +16,7 @@ import {
   updateJobStatus,
 } from "./mongo.js";
 import { notifyStatusChange } from "./notifications.js";
+import { createBackup } from "./backup.js";
 
 function emitResponse(socket, eventName, correlationId, response) {
   socket.emit(`${eventName}:response`, { correlationId, ...response });
@@ -152,4 +153,11 @@ export function registerCrmSocketHandlers(io, socket) {
     });
   });
 
+  // ── Backup ─────────────────────────────────────────────────────────────────
+
+  socket.on("crm:backup:create", async ({ correlationId } = {}) => {
+    await handle(socket, io, "crm:backup:create", correlationId, async () => {
+      return createBackup();
+    });
+  });
 }
